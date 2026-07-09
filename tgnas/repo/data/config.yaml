@@ -1,0 +1,63 @@
+server:
+  # listen: ":9000"
+  # If set and the environment variable is non-empty, it overrides listen.
+  # listen_env: "TGNAS_LISTEN"
+  # Public URL used when the service needs to describe its external endpoint.
+  # public_base_url: "https://s3.example.com"
+  # Trusted reverse proxy CIDRs (forwarded host/proto accepted when remote IP matches).
+  # Prefer this when possible: any forwarded host from a trusted proxy IP is accepted.
+  # trusted_proxies:
+  #   - "127.0.0.1/32"
+  #   - "172.16.0.0/12"
+  # Hostnames that are always trusted for forwarded headers (case-insensitive).
+  # Warning: this trusts the forwarded host value itself, which is client-controlled
+  # unless a real proxy strips and sets it, so block direct untrusted access.
+  # trusted_proxy_hosts:
+  #   - "s3.example.com"
+
+auth:
+  # region: "us-east-1"
+  credentials:
+    - access_key: "admin"
+      secret_key_env: "TGNAS_SECRET_KEY"
+
+telegram:
+  bot_token_env: "TGNAS_TELEGRAM_BOT_TOKEN"
+  # api_base_url: "https://api.telegram.org"
+  # caption_template: "{bucket}/{key}"
+  # timeout: "30s"
+
+metadata:
+  # sqlite_path: "data/metadata.sqlite"
+  # If set and the environment variable is non-empty, it overrides sqlite_path.
+  # sqlite_path_env: "TGNAS_SQLITE_PATH"
+
+storage:
+  # upload_type_strategy: "document"
+  # Set to "auto" to use typed Telegram media uploads when possible.
+  # Warning: typed uploads (photo/video/audio/animation) may be recompressed or
+  # otherwise transformed by Telegram. TgNAS stores the Bot API returned file_size
+  # for typed uploads, which may differ from the original uploaded byte size.
+  # enable_chunking: true
+  # max_file_size: 52428800
+  # chunk_size: 20971520
+  # type_size_limits:
+  #   photo: 10485760
+  #   video: 20971520
+  #   audio: 20971520
+  #   animation: 20971520
+  #   document: 20971520
+  # max_concurrent_uploads: 4
+  # max_concurrent_downloads: 16
+  # max_concurrent_telegram_requests: 8
+  # put_buffer_size: 1048576
+
+webdav:
+  # prefix: "/dav/"
+
+buckets:
+  tgnas:
+    chat_id: "${TGNAS_TELEGRAM_CHAT_ID}"
+    # public_read: false
+  # private:
+  #   chat_id: "-1001234567890"

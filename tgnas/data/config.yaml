@@ -1,0 +1,31 @@
+﻿server:
+  # listen: ":9000"
+
+auth:
+  credentials:
+    - access_key: "admin"
+      secret_key_env: "TGNAS_SECRET_KEY"
+
+telegram:
+  bot_token_env: "TGNAS_TELEGRAM_BOT_TOKEN"
+  api_base_url: "http://host.docker.internal:8082"
+  timeout: 3600s
+
+storage:
+  upload_type_strategy: document
+  enable_chunking: true
+  max_file_size: 2000000000
+  chunk_size: 2000000000
+  type_size_limits:
+    photo: 2000000000
+    video: 2000000000
+    audio: 2000000000
+    animation: 2000000000
+    document: 2000000000
+
+webdav:
+
+buckets:
+  tgnas:
+    chat_id: "${TGNAS_TELEGRAM_CHAT_ID}"
+

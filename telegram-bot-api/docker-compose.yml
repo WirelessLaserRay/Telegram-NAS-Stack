@@ -1,0 +1,38 @@
+services:
+  clash:
+    image: metacubex/mihomo:latest
+    container_name: telegram-bot-api-proxy
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    volumes:
+      - ./clash-proxy.yaml:/root/.config/mihomo/config.yaml
+    ports:
+      - "8081:8081"
+      - "8082:8082"
+    dns:
+      - 8.8.8.8
+    restart: unless-stopped
+
+  telegram-bot-api:
+    container_name: telegram-bot-api
+    image: aiogram/telegram-bot-api:latest
+    network_mode: "service:clash"
+    volumes:
+      - ./bot-api-data:/var/lib/telegram-bot-api
+    environment:
+      TELEGRAM_API_ID: "your_api_id_here"
+      TELEGRAM_API_HASH: "your_api_hash_here"
+      TELEGRAM_LOCAL: "1"
+      TELEGRAM_VERBOSITY: "3"
+    restart: unless-stopped
+
+  nginx:
+    container_name: telegram-bot-api-nginx
+    image: nginx:latest
+    network_mode: "service:clash"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+      - ./bot-api-data:/var/lib/telegram-bot-api:ro
+    restart: unless-stopped
