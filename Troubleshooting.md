@@ -1,19 +1,8 @@
 # TgNAS 项目排障指南
 
-本文档记录了基于 TgNAS (Telegram NAS) 与 Local Telegram Bot API 搭建本地无限容量网盘的完整架构、排障历程以及后续注意事项。
+本文档记录了在搭建与使用 TgNAS 架构期间遇到的各类异常问题及其解决方案。
 
-## 1. 核心架构与原理
-
-本网盘系统利用了 Telegram 作为底层免费无限存储的特性，主要由以下三个模块构成：
-- **TgNAS 后端 (`tgnas`)**：提供 S3 / WebDAV 兼容接口，并负责与 Telegram API 通信，对文件进行切片上传和拼接下载。
-- **本地 Telegram Bot API (`telegram-bot-api`)**：官方为了突破 20MB 下载/50MB 上传限制而提供的本地网关。TgNAS 通过它来处理超大文件。
-- **客户端挂载端 (`rclone`)**：将 TgNAS 提供的 S3 接口无感挂载为 Windows 本地驱动器 (Z盘)。
-
----
-
-## 2. 问题排查与解决记录
-
-在搭建过程中，我们遇到并解决了一系列深层次架构和网络层面的问题：
+## 问题记录与解决方案
 
 ### 问题一：上传大文件时报 `502 Bad Gateway`
 - **现象**：通过 rclone copy 复制文件到云端时，TgNAS 报错 502。
@@ -71,7 +60,6 @@
   2. 在 Nginx 的 `default.conf` 中追加了 `proxy_read_timeout 3600; proxy_send_timeout 3600; proxy_connect_timeout 3600;` 允许超长持久连接。
   3. 在 TgNAS 的配置文件中将 `type_size_limits`（各类文件大小限制）统一写死到 2000MB，防止后端自作主张发起分片干预。
 
-
 ### 问题九：特定格式文件（如 MP3）上传时报错 500 (telegram upload response missing document)
 - **现象**：大部分文件都能正常上传，但当上传 `.mp3` 或部分特定格式文件时，rclone 报错 `StatusCode: 500, api error InternalError: We encountered an internal error.`
 - **根本原因**：
@@ -89,49 +77,12 @@
 - **解决方案**：
   修改了 `./tgnas/repo/internal/s3api/sigv4.go` 中的 `canonicalURI` 函数，将读取路径的方式从 `u.EscapedPath()` 更改为未编码的 `u.Path`。随后重新执行 `docker build -t tgnas:local .` 并 `docker-compose up -d` 重启容器。此后特殊字符文件均可顺利通过签名验证并上传。
 
-### 问题 11：挂载盘中移动/重命名文件报错 `deserialization failed, received empty response payload`
-- **症状**：在挂载盘中重命名或移动文件（特别是 `MobileUploads` 文件夹下的文件）时，出现 `Dir.Rename error: operation error S3: CopyObject... deserialization failed, received empty response payload` 错误。文件移动失败。
-- **原因**：Rclone (S3 客户端) 移动文件依赖 S3 的 `CopyObject` API。当客户端发起携带 `x-amz-copy-source` 的 PUT 请求时，旧版的 TgNAS 没有处理该 header，而是将其当成了 0 字节的普通文件上传，返回 HTTP 200 及空内容。这导致 Rclone 无法解析出预期的 XML `CopyObjectResult` 从而报错拦截了移动。
-- **解决方式**：在 `internal/s3api/server.go` 的 `putObject` 函数中，拦截提取 `X-Amz-Copy-Source` 请求头，并手动执行底层的 `store.CopyObject()`。最后按照标准 S3 API 构造并返回了 `CopyObjectResultXML`。
+### 问题十一：挂载盘中移动/重命名文件报错 `deserialization failed, received empty response payload`
+- **现象**：在挂载盘中重命名或移动文件（特别是 `MobileUploads` 文件夹下的文件）时，出现 `Dir.Rename error: operation error S3: CopyObject... deserialization failed, received empty response payload` 错误。文件移动失败。
+- **根本原因**：Rclone (S3 客户端) 移动文件依赖 S3 的 `CopyObject` API。当客户端发起携带 `x-amz-copy-source` 的 PUT 请求时，旧版的 TgNAS 没有处理该 header，而是将其当成了 0 字节的普通文件上传，返回 HTTP 200 及空内容。这导致 Rclone 无法解析出预期的 XML `CopyObjectResult` 从而报错拦截了移动。
+- **解决方案**：在 `internal/s3api/server.go` 的 `putObject` 函数中，拦截提取 `X-Amz-Copy-Source` 请求头，并手动执行底层的 `store.CopyObject()`。最后按照标准 S3 API 构造并返回了 `CopyObjectResultXML`。
 
-### 附录（小贴士）：含有 `~` 或特殊日文字符的文件显示异常/消失
-
+### 附录：含有 `~` 或特殊日文字符的文件显示异常/消失
 - **现象**：当文件名内存在 `~` 符号，或包含日文全角空格时，文件可能在 Z 盘不可见，或者其中的空格被显示成了 `u3000`。
 - **根本原因**：这是 Windows 系统的祖传规范与 WinFsp (rclone 虚拟驱动) 的互相妥协。Windows 严禁文件名以空格结尾，且有时会将包含 `~` 的长文件名误认为是 DOS 时代的 8.3 短文件格式（如 `PROGRA~1`）。WinFsp 为了防止 Windows 崩溃，会自动将非法尾随空格转换为全角的 Unicode 占位符 `\u3000`，而遇到 `~` 无法解析时，Windows 资源管理器会出于安全考虑直接把文件隐藏。
 - **解决方案**：属于虚拟磁盘机制和操作系统的设计限制。只需要避免文件末尾带空格或避免滥用特殊控制符，即可和平共处。
-
----
-
-## 3. 今后注意事项与维护指南
-- **不要擅自删除 Telegram 中的文件**：
-  - 一旦您在 Telegram 聊天记录中删除了底层的文件片段，挂载盘中对应的文件就会直接损坏。
-
-- **文件命名尽量规范**：
-  - 尽量避免文件名末尾包含特殊字符或大量不可见控制符，以减轻挂载系统的转码负担。
-
-- **更新镜像方式**：
-  - 如果以后修改了核心 Go 代码，需要在 `repo` 目录执行 `docker build -t tgnas:local .`，然后再回到上一级目录执行 `docker-compose up -d` 才能使新代码在容器里生效。
-
-- **容器管理**：
-  - 启动顺序应当是先启动 `./telegram-bot-api/docker-compose.yml` (确保代理、Nginx和Bot API就绪)。
-  - 然后再启动 `./tgnas/docker-compose.yml`。
-- **环境变量与代理**：
-  - 系统目前的设计将 TgNAS 的内网通信与外网代理切分开。如果你在未来需要修改 Windows 本地的 Clash 端口，请记得同步检查 TgNAS 中的 `HTTP_PROXY` 设定。
-
-- **磁盘空间监控 (重要)**：
-  - 由于处于本地模式，Telegram Bot API 会在下载/上传过程中将临时文件缓存在 Docker 的 `telegram-bot-api-data` volume 中（存放位置属于 Docker 虚拟磁盘）。虽然官方 API 通常会自清理旧缓存，但若发生崩溃，可能会有文件残留。若发现 C 盘空间吃紧，可以考虑清理该 Volume。
-
-- **更换 Bot Token**：
-  - 如果未来你想换一个 Telegram 机器人来存储，**必须**同步更新两处：
-    1. `./tgnas/.env` 中的 `TGNAS_TELEGRAM_BOT_TOKEN`
-    2. 旧机器人的文件新机器是无法直接访问的，需要重新上传或通过 Telegram 进行数据转移。
-
-- **Z 盘解挂与重挂**：
-  - 如果 Z 盘出现未响应，不要强行关机。在任务管理器中找到 `rclone.exe` 进程并结束，Z 盘会自动消失。之后可手动双击 `./tgnas/start_mount.bat` 来重新挂载。
-
-## 4. 扩展功能：移动端直传同步 (Mobile Sync)
-通过在后台运行的旁路同步脚本，您可以直接用手机向绑定的 Telegram 群聊发送文件，这些文件会瞬间自动出现在 TgNAS 的虚拟挂载盘中。
-- **功能原理**：脚本 `sync_mobile.py` 监听目标群聊，拦截非 Bot 发送的文件消息，并将其对应的 Telegram `FileID` 等信息作为一条记录直接注入 TgNAS 的 `metadata.sqlite` 数据库中。
-- **文件位置**：通过手机发送的文件会统一出现在挂载盘内的 `MobileUploads` 目录下。
-- **大小限制**：**与 Telegram 官方发文件限制完全一致**。由于下载时走的是 Local Bot API，因此没有任何额外的流式限制。只要您的手机能发出去（普通用户 2GB，开通 Telegram Premium 则高达 4GB），挂载盘里就能无缝全速取回！
-- **部署方式**：该脚本已作为标准的独立容器（`tgnas-sync`）集成在 `./tgnas/docker-compose.yml` 中。每次执行 `docker-compose up -d` 时，它会和主服务一起自动在后台常驻运行，安全且省心。

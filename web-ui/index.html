@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TgNAS Stack 部署配置向导</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg-base: #0f172a;
+            --glass-bg: rgba(30, 41, 59, 0.6);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --error: #ef4444;
+            --success: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-base);
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.15), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.15), transparent 25%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            overflow-x: hidden;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            position: relative;
+        }
+
+        /* Glassmorphism Card */
+        .card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 3rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s ease;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3rem;
+            position: relative;
+        }
+
+        .progress-container::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--glass-border);
+            z-index: 0;
+            transform: translateY(-50%);
+        }
+
+        .progress-bar {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            height: 2px;
+            background: var(--primary);
+            z-index: 0;
+            transform: translateY(-50%);
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+
+        .step-indicator {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--bg-base);
+            border: 2px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            z-index: 1;
+            transition: all 0.4s ease;
+            color: var(--text-muted);
+        }
+
+        .step-indicator.active {
+            border-color: var(--primary);
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.5);
+        }
+
+        .step-indicator.completed {
+            border-color: var(--primary);
+            background: var(--bg-base);
+            color: var(--primary);
+        }
+
+        /* Form Steps */
+        .step-content {
+            display: none;
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        .step-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h2 {
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+            font-size: 0.95rem;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-main);
+        }
+
+        .input-group input {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            color: white;
+            font-size: 1rem;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .input-group input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
+        .input-group input::placeholder {
+            color: #475569;
+        }
+
+        .hint {
+            display: block;
+            margin-top: 0.4rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* Buttons */
+        .btn-container {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+            margin-top: 3rem;
+        }
+
+        button {
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Inter', sans-serif;
+            border: none;
+        }
+
+        .btn-prev {
+            background: transparent;
+            color: var(--text-main);
+            border: 1px solid var(--glass-border);
+        }
+
+        .btn-prev:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .btn-next {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.39);
+        }
+
+        .btn-next:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+        }
+
+        /* Final Result Section */
+        .code-block {
+            background: #0f172a;
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .code-block pre {
+            margin: 0;
+            overflow-x: auto;
+            color: #e2e8f0;
+            font-family: monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            backdrop-filter: blur(4px);
+        }
+
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .download-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 1rem;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            margin-top: 1rem;
+            box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.39);
+        }
+        
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="card">
+            <!-- Progress Bar -->
+            <div class="progress-container">
+                <div class="progress-bar" id="progress-bar"></div>
+                <div class="step-indicator active" data-step="1">1</div>
+                <div class="step-indicator" data-step="2">2</div>
+                <div class="step-indicator" data-step="3">3</div>
+                <div class="step-indicator" data-step="4">4</div>
+            </div>
+
+            <!-- Form -->
+            <form id="configForm">
+                
+                <!-- Step 1: Telegram API -->
+                <div class="step-content active" id="step-1">
+                    <h2>Telegram 开发者凭据</h2>
+                    <p class="subtitle">这些信息用于启动底层 Local Bot API 服务以突破限制。</p>
+                    
+                    <div class="input-group">
+                        <label for="api_id">API ID</label>
+                        <input type="text" id="api_id" placeholder="例如: 1234567" required>
+                        <span class="hint">可前往 my.telegram.org 获取</span>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="api_hash">API Hash</label>
+                        <input type="text" id="api_hash" placeholder="例如: 0123456789abcdef0123456789abcdef" required>
+                    </div>
+                </div>
+
+                <!-- Step 2: Telegram Bot -->
+                <div class="step-content" id="step-2">
+                    <h2>机器人与群组设置</h2>
+                    <p class="subtitle">绑定用于存储文件的机器人以及目标群组。</p>
+                    
+                    <div class="input-group">
+                        <label for="bot_token">Bot Token</label>
+                        <input type="text" id="bot_token" placeholder="例如: 123456789:ABCDefghIJKlmnOPQRstuvWXYZ" required>
+                        <span class="hint">在 Telegram 中向 @BotFather 申请</span>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="chat_id">Chat ID (目标群组/频道)</label>
+                        <input type="text" id="chat_id" placeholder="例如: -1001234567890" required>
+                        <span class="hint">作为云盘根目录的超级群组 ID (须以 -100 开头)</span>
+                    </div>
+                </div>
+
+                <!-- Step 3: Security & Network -->
+                <div class="step-content" id="step-3">
+                    <h2>安全与网络代理</h2>
+                    <p class="subtitle">设置本地网盘的安全密钥及宿主机代理网络。</p>
+                    
+                    <div class="input-group">
+                        <label for="s3_secret">自定义 S3/WebDAV 密钥 (Secret Key)</label>
+                        <input type="text" id="s3_secret" placeholder="设置一个强密码" value="tgnas_secure_2024" required>
+                        <span class="hint">用于 Rclone 挂载时的鉴权</span>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="http_proxy">宿主机代理地址 (可选)</label>
+                        <input type="text" id="http_proxy" placeholder="例如: http://host.docker.internal:7890">
+                        <span class="hint">如果不填，系统将尝试直连 Telegram (国内环境需填写代理)</span>
+                    </div>
+                </div>
+
+                <!-- Step 4: Result -->
+                <div class="step-content" id="step-4">
+                    <h2>🎉 配置已生成</h2>
+                    <p class="subtitle">请将以下内容保存到对应文件中以完成部署。</p>
+                    
+                    <div class="input-group">
+                        <label>1. 保存至 tgnas/.env</label>
+                        <div class="code-block">
+                            <button type="button" class="copy-btn" onclick="copyCode('env-code')">复制</button>
+                            <pre id="env-code"></pre>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>2. 修改 telegram-bot-api/docker-compose.yml</label>
+                        <p class="hint" style="margin-bottom: 0.8rem;">在环境变量区域填入您的 API ID 和 Hash：</p>
+                        <div class="code-block">
+                            <button type="button" class="copy-btn" onclick="copyCode('bot-code')">复制</button>
+                            <pre id="bot-code"></pre>
+                        </div>
+                    </div>
+
+                    <button type="button" class="download-btn" onclick="executeDeploy()">🚀 一键生成配置并自动部署</button>
+                </div>
+
+                <!-- Navigation -->
+                <div class="btn-container">
+                    <button type="button" class="btn-prev" id="btn-prev" style="display: none;">上一步</button>
+                    <button type="button" class="btn-next" id="btn-next">下一步</button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+    <!-- JSZip for zipping files purely on frontend -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <script>
+        const totalSteps = 4;
+        let currentStep = 1;
+
+        const btnNext = document.getElementById('btn-next');
+        const btnPrev = document.getElementById('btn-prev');
+        const progressBar = document.getElementById('progress-bar');
+
+        function updateUI() {
+            // Update steps
+            document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(`step-${currentStep}`).classList.add('active');
+
+            // Update indicators
+            document.querySelectorAll('.step-indicator').forEach((el, index) => {
+                const stepNum = index + 1;
+                el.classList.remove('active', 'completed');
+                if (stepNum === currentStep) {
+                    el.classList.add('active');
+                } else if (stepNum < currentStep) {
+                    el.classList.add('completed');
+                }
+            });
+
+            // Update progress bar
+            progressBar.style.width = `${((currentStep - 1) / (totalSteps - 1)) * 100}%`;
+
+            // Update buttons
+            btnPrev.style.display = currentStep === 1 ? 'none' : 'block';
+            
+            if (currentStep === totalSteps) {
+                btnNext.style.display = 'none';
+                btnPrev.style.display = 'none';
+                generateConfig();
+            } else {
+                btnNext.style.display = 'block';
+                btnNext.textContent = currentStep === totalSteps - 1 ? '生成配置' : '下一步';
+            }
+        }
+
+        btnNext.addEventListener('click', () => {
+            // Basic validation
+            const currentContent = document.getElementById(`step-${currentStep}`);
+            const inputs = currentContent.querySelectorAll('input[required]');
+            let valid = true;
+            inputs.forEach(input => {
+                if (!input.value.trim()) {
+                    input.style.borderColor = 'var(--error)';
+                    valid = false;
+                } else {
+                    input.style.borderColor = 'var(--glass-border)';
+                }
+            });
+
+            if (!valid) return;
+
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateUI();
+            }
+        });
+
+        btnPrev.addEventListener('click', () => {
+            if (currentStep > 1) {
+                currentStep--;
+                updateUI();
+            }
+        });
+
+        function generateConfig() {
+            const apiId = document.getElementById('api_id').value;
+            const apiHash = document.getElementById('api_hash').value;
+            const botToken = document.getElementById('bot_token').value;
+            const chatId = document.getElementById('chat_id').value;
+            const s3Secret = document.getElementById('s3_secret').value;
+            const httpProxy = document.getElementById('http_proxy').value;
+
+            const envOutput = `TGNAS_SECRET_KEY=${s3Secret}
+TGNAS_TELEGRAM_BOT_TOKEN=${botToken}
+TGNAS_TELEGRAM_CHAT_ID=${chatId}
+
+${httpProxy ? `HTTP_PROXY=${httpProxy}\nHTTPS_PROXY=${httpProxy}` : '# HTTP_PROXY='}
+TGNAS_PORT_EXPOSED=9000`;
+
+            const botOutput = `    environment:
+      TELEGRAM_API_ID: "${apiId}"
+      TELEGRAM_API_HASH: "${apiHash}"
+      TELEGRAM_LOCAL: "1"
+      TELEGRAM_VERBOSITY: "3"`;
+
+            document.getElementById('env-code').textContent = envOutput;
+            document.getElementById('bot-code').textContent = botOutput;
+        }
+
+        function executeDeploy() {
+            const apiId = document.getElementById('api_id').value;
+            const apiHash = document.getElementById('api_hash').value;
+            const botToken = document.getElementById('bot_token').value;
+            const chatId = document.getElementById('chat_id').value;
+            const s3Secret = document.getElementById('s3_secret').value;
+            const httpProxy = document.getElementById('http_proxy').value;
+
+            const payload = {
+                apiId, apiHash, botToken, chatId, s3Secret, httpProxy
+            };
+
+            const btn = document.querySelector('.download-btn');
+            btn.textContent = '🚀 正在自动部署...';
+            btn.style.pointerEvents = 'none';
+            btn.style.opacity = '0.8';
+
+            fetch('/api/deploy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.status === 'success') {
+                    btn.textContent = '✅ 部署成功！您可以关闭此页面了';
+                    btn.style.background = 'linear-gradient(135deg, #059669, #047857)';
+                }
+            })
+            .catch(err => {
+                btn.textContent = '❌ 部署失败，请查看命令行窗口报错';
+                btn.style.background = 'var(--error)';
+            });
+        }
+
+        function copyCode(elementId) {
+            const text = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.querySelector(`button[onclick="copyCode('${elementId}')"]`);
+                const originalText = btn.textContent;
+                btn.textContent = '已复制!';
+                btn.style.background = 'var(--success)';
+                btn.style.borderColor = 'var(--success)';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = 'rgba(255, 255, 255, 0.1)';
+                    btn.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>

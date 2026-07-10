@@ -35,6 +35,8 @@
  ┃ ┣ 📜 mount-z.bat               # WebDAV 协议备用挂载脚本
  ┃ ┣ 📜 tgnas_mount.vbs           # Windows 后台静默执行挂载的 VBS 脚本
  ┃ ┗ 📜 .env.example              # 环境变量模板文件
+ ┣ 📂 web-ui/                       # 可视化部署向导的 Web 前端与本地服务脚本
+ ┣ 📜 一键自动化部署.bat            # Windows 桌面一键安装部署入口 (⭐Beta / 待测试)
  ┣ 📜 Troubleshooting.md            # 项目原理解析与常见报错排障指南
  ┗ 📜 README.md                     # 本说明文档
 ```
@@ -49,13 +51,21 @@
 - 安装了 **WinFsp** (Windows File System Proxy)，Rclone 挂载必备。
 - 准备好一个 Telegram Bot 的 `Token`、你的 Telegram `API ID` 与 `API HASH`、以及作为存储后端的群组或频道的 `Chat ID`。
 
-### 2. 启动基础代理与 Bot API 栈
+### 2. 自动化安装向导 (⭐推荐, Beta待测试)
+如果你使用的是 Windows 环境，我们提供了一个无缝的图形化配置前端：
+1. 请先修改 `telegram-bot-api/clash-proxy.yaml`，填入你自己可用的节点/订阅信息。
+2. 双击运行项目根目录下的 **`一键自动化部署.bat`**。
+3. 按照弹出的 Web UI 向导填入你的 API ID、密钥和代理信息，点击“一键部署”即可自动拉起所有服务！
+
+### 3. 手动部署流程
+如果你不使用 Windows 或者更倾向于极客风格的手动配置，请按以下步骤启动：
+
 首先启动底层支持服务（Bot API + 代理）：
 ```bash
 cd telegram-bot-api
 ```
 - 请修改 `clash-proxy.yaml`，填入你自己可用的节点/订阅信息。
-- 修改 `docker-compose.yml` 中的环境变量：
+- 如果不使用 Web UI，请在当前目录创建 `.env` 文件并填入：
   - `TELEGRAM_API_ID`
   - `TELEGRAM_API_HASH`
 ```bash

@@ -22,8 +22,8 @@ services:
     volumes:
       - ./bot-api-data:/var/lib/telegram-bot-api
     environment:
-      TELEGRAM_API_ID: "your_api_id_here"
-      TELEGRAM_API_HASH: "your_api_hash_here"
+      TELEGRAM_API_ID: "${TELEGRAM_API_ID}"
+      TELEGRAM_API_HASH: "${TELEGRAM_API_HASH}"
       TELEGRAM_LOCAL: "1"
       TELEGRAM_VERBOSITY: "3"
     restart: unless-stopped
