@@ -60,6 +60,7 @@
 ### 3. 手动部署流程
 如果你不使用 Windows 或者更倾向于极客风格的手动配置，请按以下步骤启动：
 
+#### 3.1 启动基础代理与 Bot API 栈
 首先启动底层支持服务（Bot API + 代理）：
 ```bash
 cd telegram-bot-api
@@ -73,7 +74,7 @@ docker-compose up -d
 cd ..
 ```
 
-### 3. 配置与启动 TgNAS 服务栈
+#### 3.2 配置与启动 TgNAS 服务栈
 接下来启动核心存储服务：
 ```bash
 cd tgnas
