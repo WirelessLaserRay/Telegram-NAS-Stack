@@ -26,12 +26,12 @@
 ### 问题四：大体积多媒体文件下载失败 (开启真·本地模式与 Nginx 绝对路径冲突)
 - **现象**：虽然之前通过 Nginx 解决了小文件下载问题，但在尝试下载大于 20MB 的媒体文件（如 70MB 的 .wav 音频）时，再次报错 `unexpected EOF`。查阅日志发现 Bot API 抛出 `Bad Request: file is too big` 异常。
 - **根本原因**：
-  1. `aiogram/telegram-bot-api` Docker 容器的启动脚本完全忽略了我们在 `docker-compose.yml` 中注入的 `command: ["--local"]` 参数。由于缺失 `--local` 标志，Bot API 一直以受限的“云端模式”运行。云端模式下，强制限制单次 `getFile` 接口可获取的文件最大不能超过 20MB。
-  2. 当我们修正为使用容器专用的环境变量 `TELEGRAM_LOCAL: "1"` 开启真·本地模式后，Bot API 成功解锁了 2000MB 的大文件限制。但开启真本地模式后，Bot API 返回的 `file_path` 格式发生了改变——从相对路径变成了以 `/var/lib/...` 开头的绝对路径。
-  3. 绝对路径与我们之前的 Nginx 正则匹配规则 (`location ~ ^/file/bot([^/]+)/(.*)$`) 发生重叠，导致被解析成 `/var/lib/telegram-bot-api/<token>/var/lib/...` 的错误死循环路径，再次引发 404。
+  - `aiogram/telegram-bot-api` Docker 容器的启动脚本完全忽略了我们在 `docker-compose.yml` 中注入的 `command: ["--local"]` 参数。由于缺失 `--local` 标志，Bot API 一直以受限的“云端模式”运行。云端模式下，强制限制单次 `getFile` 接口可获取的文件最大不能超过 20MB。
+  - 当我们修正为使用容器专用的环境变量 `TELEGRAM_LOCAL: "1"` 开启真·本地模式后，Bot API 成功解锁了 2000MB 的大文件限制。但开启真本地模式后，Bot API 返回的 `file_path` 格式发生了改变——从相对路径变成了以 `/var/lib/...` 开头的绝对路径。
+  - 绝对路径与我们之前的 Nginx 正则匹配规则 (`location ~ ^/file/bot([^/]+)/(.*)$`) 发生重叠，导致被解析成 `/var/lib/telegram-bot-api/<token>/var/lib/...` 的错误死循环路径，再次引发 404。
 - **解决方案**：
-  1. 将 `telegram-bot-api` 的 `docker-compose.yml` 中的配置项从 `command` 变更为 `environment: TELEGRAM_LOCAL: "1"`。
-  2. 针对真·本地模式修改 Nginx 规则，新增 `location ~ ^/file/bot([^/]+)/var/lib/telegram-bot-api/(.*)$`，以专门捕获并妥善剥离绝对路径前缀，打通大文件代理。
+  - 将 `telegram-bot-api` 的 `docker-compose.yml` 中的配置项从 `command` 变更为 `environment: TELEGRAM_LOCAL: "1"`。
+  - 针对真·本地模式修改 Nginx 规则，新增 `location ~ ^/file/bot([^/]+)/var/lib/telegram-bot-api/(.*)$`，以专门捕获并妥善剥离绝对路径前缀，打通大文件代理。
 
 ### 问题五：大文件上传报错 500 Internal Error (Nginx 限制了请求体大小)
 - **现象**：开启 Nginx 代理后，通过 rclone 拖入大于 1MB 的大文件时报错 `StatusCode: 500`。
@@ -52,20 +52,20 @@
 ### 问题八：大文件上传时无限循环重发，无法停止
 - **现象**：上传大文件时，文件被完整上传，但在结束后它不会停下，而是会永远在后台一遍遍重新发送相同的文件。
 - **根本原因**：由于是百兆大文件，本地 Bot API 上传至 Telegram 服务器的过程极其耗时（通常超过 1 分钟）。
-  1. `TgNAS` 默认硬编码了 30秒 的 Telegram API 调用超时时间。
-  2. `Nginx` 代理层默认的代理读写超时（`proxy_read_timeout`）是 60秒。
-  这导致上传耗时一长，网关和代理就会掐断连接并报错。当 `rclone` 收到前端传来的错误后，便会忠实地开启“错误重试”流程，重新上传一遍文件；而后台其实并未停止上传，导致触发了无限套娃的重复上传。
+  - `TgNAS` 默认硬编码了 30秒 的 Telegram API 调用超时时间。
+  - `Nginx` 代理层默认的代理读写超时（`proxy_read_timeout`）是 60秒。
+    这导致上传耗时一长，网关和代理就会掐断连接并报错。当 `rclone` 收到前端传来的错误后，便会忠实地开启“错误重试”流程，重新上传一遍文件；而后台其实并未停止上传，导致触发了无限套娃的重复上传。
 - **解决方案**：
-  1. 在 `./tgnas/data/config.yaml` 中新增了 `timeout: 3600s` 强制将 TgNAS 调用超时时间延长至 1 小时。
-  2. 在 Nginx 的 `default.conf` 中追加了 `proxy_read_timeout 3600; proxy_send_timeout 3600; proxy_connect_timeout 3600;` 允许超长持久连接。
-  3. 在 TgNAS 的配置文件中将 `type_size_limits`（各类文件大小限制）统一写死到 2000MB，防止后端自作主张发起分片干预。
+  - 在 `./tgnas/data/config.yaml` 中新增了 `timeout: 3600s` 强制将 TgNAS 调用超时时间延长至 1 小时。
+  - 在 Nginx 的 `default.conf` 中追加了 `proxy_read_timeout 3600; proxy_send_timeout 3600; proxy_connect_timeout 3600;` 允许超长持久连接。
+  - 在 TgNAS 的配置文件中将 `type_size_limits`（各类文件大小限制）统一写死到 2000MB，防止后端自作主张发起分片干预。
 
 ### 问题九：特定格式文件（如 MP3）上传时报错 500 (telegram upload response missing document)
 - **现象**：大部分文件都能正常上传，但当上传 `.mp3` 或部分特定格式文件时，rclone 报错 `StatusCode: 500, api error InternalError: We encountered an internal error.`
 - **根本原因**：
-  1. Telegram Bot API 拥有自动的媒体识别机制。当 TgNAS 通过 `sendDocument` 接口发送 MP3 等媒体文件时，Telegram 服务器会识别其格式，并在返回的 JSON 响应中将其强制放在 `audio` （或 `video`）字段中，而不是预期的 `document` 字段。
-  2. 之前的 `tgnas` 核心代码严格期望返回 `document` 字段。一旦找不到，就会抛出 `telegram upload response missing document`，最终引发 500 错误。
-  3. 虽然本地仓库（`repo/telegram/client.go`）已经被修改，加入了针对 Telegram 转换文档格式的 Fallback 兼容逻辑，且镜像已经重新 `docker build`，**但由于未执行 `docker-compose up -d`，旧的容器并未被替换**。
+  - Telegram Bot API 拥有自动的媒体识别机制。当 TgNAS 通过 `sendDocument` 接口发送 MP3 等媒体文件时，Telegram 服务器会识别其格式，并在返回的 JSON 响应中将其强制放在 `audio` （或 `video`）字段中，而不是预期的 `document` 字段。
+  - 之前的 `tgnas` 核心代码严格期望返回 `document` 字段。一旦找不到，就会抛出 `telegram upload response missing document`，最终引发 500 错误。
+  - 虽然本地仓库（`repo/telegram/client.go`）已经被修改，加入了针对 Telegram 转换文档格式的 Fallback 兼容逻辑，且镜像已经重新 `docker build`，**但由于未执行 `docker-compose up -d`，旧的容器并未被替换**。
 - **解决方案**：
   在 `./tgnas` 目录下执行 `docker-compose up -d` 重新创建 `tgnas` 容器。这不仅应用了修复 `mp3` 上传的 Fallback 补丁，同时也应用了针对超大文件上传的流式内存优化（`io.TeeReader`）。
 
